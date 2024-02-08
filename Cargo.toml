@@ -1,12 +1,12 @@
 [package]
-name = "stylus-hello-world"
+name = "erc721a"
 version = "0.1.5"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/OffchainLabs/stylus-hello-world"
-repository = "https://github.com/OffchainLabs/stylus-hello-world"
+homepage = ""
+repository = ""
 keywords = ["arbitrum", "ethereum", "stylus", "alloy"]
-description = "Stylus hello world example"
+description = "ERC721A implemented in Rust"
 
 [dependencies]
 alloy-primitives = "0.3.1"
@@ -25,7 +25,7 @@ export-abi = ["stylus-sdk/export-abi"]
 debug = ["stylus-sdk/debug"]
 
 [[bin]]
-name = "stylus-hello-world"
+name = "erc721a"
 path = "src/main.rs"
 
 [lib]

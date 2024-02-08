@@ -1,58 +1,91 @@
-//! Implements a hello-world example for Arbitrum Stylus, providing a Solidity ABI-equivalent
-//! Rust implementation of the Counter contract example provided by Foundry.
-//! Warning: this code is a template only and has not been audited.
-//! ```
-//! contract Counter {
-//!     uint256 public number;
-//!     function setNumber(uint256 newNumber) public {
-//!         number = newNumber;
-//!     }
-//!     function increment() public {
-//!         number++;
-//!     }
-//! }
-//! ```
-
-// Only run this as a WASM if the export-abi feature is not set.
-#![cfg_attr(not(feature = "export-abi"), no_main)]
+#![cfg_attr(not(feature = "export-abi"), no_std)]
 extern crate alloc;
+extern crate mini_alloc;
 
-/// Initializes a custom, global allocator for Rust programs compiled to WASM.
+mod erc721a;
+
+use crate::erc721a::{ERC721, ERC721Params};
+use mini_alloc::MiniAlloc;
+use alloc::{string::String, vec::Vec, format};
+use stylus_sdk::{alloy_primitives::U256, msg, prelude::*};
+
 #[global_allocator]
-static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
+static ALLOC: MiniAlloc = MiniAlloc::INIT;
 
-/// Import the Stylus SDK along with alloy primitive types for use in our program.
-use stylus_sdk::{alloy_primitives::U256, prelude::*};
+pub struct SampleParams;
 
-// Define the entrypoint as a Solidity storage object, in this case a struct
-// called `Counter` with a single uint256 value called `number`. The sol_storage! macro
-// will generate Rust-equivalent structs with all fields mapped to Solidity-equivalent
-// storage slots and types.
-sol_storage! {
-    #[entrypoint]
-    pub struct Counter {
-        uint256 number;
+/// Immutable definitions
+impl ERC721Params for SampleParams {
+    const NAME: &'static str = "Sample ERC721";
+    const SYMBOL: &'static str = "SAMPLE";
+    
+    fn token_uri(token_id: U256) -> String {
+        format!("ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/{}", token_id)
     }
 }
 
-/// Define an implementation of the generated Counter struct, defining a set_number
-/// and increment method using the features of the Stylus SDK.
+// The contract
+sol_storage! {
+    #[entrypoint] // Makes SampleNFT the entrypoint
+    pub struct SampleNFT {
+        #[borrow] // Allows erc721 to access SampleNFT's storage and make calls
+        ERC721<SampleParams> erc721a;
+        uint256 total_supply;
+    }
+}
+
+// Rust implementation of this SampleNFT Solidity contract:
+
+// pragma solidity ^0.8.21;
+// import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+// contract SampleNFT is ERC721 {
+//     uint256 public totalSupply;
+
+//     constructor() ERC721("Sample NFT", "SAMPLE") {}
+
+//     function mintLoop(uint256 qty) external {
+//         uint256 supply = totalSupply;
+//         for (uint256 i; i < qty; ) {
+//             unchecked {
+//                 _mint(msg.sender, supply++);
+//                 ++i;
+//             }
+//         }
+//         totalSupply = supply;
+//     }
+
+//     function burn(uint256 tokenId) external {
+//         _burn(tokenId);
+//         unchecked {
+//             --totalSupply;
+//         }
+//     }
+// }
+
 #[external]
-impl Counter {
-    /// Gets the number from storage.
-    pub fn number(&self) -> Result<U256, Vec<u8>> {
-        Ok(self.number.get())
+#[inherit(ERC721<SampleParams>)]
+impl SampleNFT {
+    pub fn total_supply(&self) -> Result<U256, Vec<u8>> {
+        Ok(self.total_supply.get())
     }
 
-    /// Sets a number in storage to a user-specified value.
-    pub fn set_number(&mut self, new_number: U256) -> Result<(), Vec<u8>> {
-        self.number.set(new_number);
+    pub fn mint_loop(&mut self, qty: U256) -> Result<(), Vec<u8>> {
+        let supply = self.total_supply.get();
+        let supply: u32 = supply.try_into().unwrap();
+        let qty: u32 = qty.try_into().unwrap();
+    
+        for i in 0..qty.try_into().unwrap() {
+            self.erc721a._mint(msg::sender(), U256::from(supply + i))?;
+        }
+        self.total_supply.set(U256::from(supply + qty));
         Ok(())
     }
 
-    /// Increments number and updates it values in storage.
-    pub fn increment(&mut self) -> Result<(), Vec<u8>> {
-        let number = self.number.get();
-        self.set_number(number + U256::from(1))
+    pub fn burn(&mut self, token_id: U256) -> Result<(), Vec<u8>> {
+        self.erc721a._burn(token_id, true)?;
+        let supply = self.total_supply.get();
+        self.total_supply.set(supply - U256::from(1));
+        Ok(())
     }
 }
