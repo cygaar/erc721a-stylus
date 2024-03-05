@@ -9,11 +9,19 @@
 //! Note that this code is unaudited and not fit for production use.
 //!
 
-use alloc::{string::{String, ToString}, vec, vec::Vec};
-use alloy_primitives::{b256, Address, U256, U64};
-use alloy_sol_types::{sol, SolError};
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::{borrow::BorrowMut, marker::PhantomData};
-use stylus_sdk::{abi::Bytes, block, evm, msg, prelude::*};
+use stylus_sdk::{
+    abi::Bytes,
+    alloy_primitives::{b256, Address, U256, U64},
+    alloy_sol_types::{sol, SolError},
+    block, evm, msg,
+    prelude::*,
+};
 
 pub trait ERC721Params {
     /// Immutable NFT name.
@@ -127,19 +135,19 @@ type Result<T, E = ERC721Error> = core::result::Result<T, E>;
 // Methods marked as "pub" here are usable outside of the erc721 module (i.e. they're callable from main.rs).
 impl<T: ERC721Params> ERC721<T> {
     fn _start_token_id(&self) -> U256 {
-        return U256::from(0)
+        return U256::from(0);
     }
 
     fn _total_minted(&self) -> U256 {
-        return self._current_index.get() - self._start_token_id()
+        return self._current_index.get() - self._start_token_id();
     }
 
     fn _number_minted(&self, owner: Address) -> U256 {
-        return U256::from(self._address_data.get(owner).number_minted.get())
+        return U256::from(self._address_data.get(owner).number_minted.get());
     }
 
     fn _number_burned(&self, owner: Address) -> U256 {
-        return U256::from(self._address_data.get(owner).number_burned.get())
+        return U256::from(self._address_data.get(owner).number_burned.get());
     }
 
     fn _get_aux(&self, owner: Address) -> U64 {
@@ -175,7 +183,9 @@ impl<T: ERC721Params> ERC721<T> {
                 }
             }
         }
-        return Err(ERC721Error::OwnerQueryForNonexistentToken(OwnerQueryForNonexistentToken {}));
+        return Err(ERC721Error::OwnerQueryForNonexistentToken(
+            OwnerQueryForNonexistentToken {},
+        ));
     }
 
     fn _base_uri(&self) -> String {
@@ -192,14 +202,28 @@ impl<T: ERC721Params> ERC721<T> {
     }
 
     fn _exists(&self, token_id: U256) -> bool {
-        return self._start_token_id() <= token_id && token_id < self._current_index.get() && !self._ownerships.get(token_id).burned.get();
+        return self._start_token_id() <= token_id
+            && token_id < self._current_index.get()
+            && !self._ownerships.get(token_id).burned.get();
     }
 
-    fn _before_token_transfers(&self, _from: Address, _to: Address, _start_token_id: U256, _quantity: U256) -> Result<()> {
+    fn _before_token_transfers(
+        &self,
+        _from: Address,
+        _to: Address,
+        _start_token_id: U256,
+        _quantity: U256,
+    ) -> Result<()> {
         Ok(())
     }
 
-    fn _after_token_transfers(&self, _from: Address, _to: Address, _start_token_id: U256, _quantity: U256) -> Result<()> {
+    fn _after_token_transfers(
+        &self,
+        _from: Address,
+        _to: Address,
+        _start_token_id: U256,
+        _quantity: U256,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -216,13 +240,19 @@ impl<T: ERC721Params> ERC721<T> {
 
         let mut address_data_setter = self._address_data.setter(to);
         let old_balance = address_data_setter.balance.get();
-        address_data_setter.balance.set(old_balance + U64::from(quantity));
+        address_data_setter
+            .balance
+            .set(old_balance + U64::from(quantity));
         let old_number_minted = address_data_setter.number_minted.get();
-        address_data_setter.number_minted.set(old_number_minted + U64::from(quantity));
+        address_data_setter
+            .number_minted
+            .set(old_number_minted + U64::from(quantity));
 
         let mut ownership_setter = self._ownerships.setter(start_token_id);
         ownership_setter.addr.set(to);
-        ownership_setter.start_timestamp.set(U64::from(block::timestamp()));
+        ownership_setter
+            .start_timestamp
+            .set(U64::from(block::timestamp()));
 
         let mut updated_index = start_token_id;
         let end = updated_index + quantity;
@@ -231,7 +261,7 @@ impl<T: ERC721Params> ERC721<T> {
             evm::log(Transfer {
                 from: Address::default(),
                 to,
-                token_id: updated_index
+                token_id: updated_index,
             });
             updated_index += U256::from(1);
 
@@ -254,14 +284,22 @@ impl<T: ERC721Params> ERC721<T> {
         data: Vec<u8>,
     ) -> Result<()> {
         storage.borrow_mut()._mint(to, quantity)?;
-        
+
         // Equivalent to `to.has_code()`
         let hash = to.codehash();
-        if !hash.is_zero() && hash != b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470") {
+        if !hash.is_zero()
+            && hash != b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+        {
             let end = storage.borrow_mut()._current_index.get();
             let mut index = end - quantity;
             loop {
-                Self::_check_contract_on_erc721_received(storage, index, Address::default(), to, data.clone())?;
+                Self::_check_contract_on_erc721_received(
+                    storage,
+                    index,
+                    Address::default(),
+                    to,
+                    data.clone(),
+                )?;
                 index += U256::from(1);
                 if index >= end {
                     break;
@@ -288,16 +326,19 @@ impl<T: ERC721Params> ERC721<T> {
     pub fn _transfer(&mut self, from: Address, to: Address, token_id: U256) -> Result<()> {
         let prev_ownership = self._ownership_of(token_id)?;
         if prev_ownership.addr.get() != from {
-            return Err(ERC721Error::TransferFromIncorrectOwner(TransferFromIncorrectOwner {}));
+            return Err(ERC721Error::TransferFromIncorrectOwner(
+                TransferFromIncorrectOwner {},
+            ));
         }
 
-        let is_approved_or_owner = 
-            msg::sender() == from
+        let is_approved_or_owner = msg::sender() == from
             || self.is_approved_for_all(from, msg::sender())?
             || self.get_approved(token_id)? == msg::sender();
 
         if !is_approved_or_owner {
-            return Err(ERC721Error::TransferCallerNotOwnerNorApproved(TransferCallerNotOwnerNorApproved {}));
+            return Err(ERC721Error::TransferCallerNotOwnerNorApproved(
+                TransferCallerNotOwnerNorApproved {},
+            ));
         }
         if to.is_zero() {
             return Err(ERC721Error::TransferToZeroAddress(TransferToZeroAddress {}));
@@ -311,12 +352,16 @@ impl<T: ERC721Params> ERC721<T> {
         // Deduct from sender balance
         let mut from_address_data_setter = self._address_data.setter(from);
         let old_from_balance = from_address_data_setter.balance.get();
-        from_address_data_setter.balance.set(old_from_balance - U64::from(1));
+        from_address_data_setter
+            .balance
+            .set(old_from_balance - U64::from(1));
 
         // Add to receiver balance
         let mut to_address_data_setter = self._address_data.setter(to);
         let old_to_balance = to_address_data_setter.balance.get();
-        to_address_data_setter.balance.set(old_to_balance + U64::from(1));
+        to_address_data_setter
+            .balance
+            .set(old_to_balance + U64::from(1));
 
         let mut curr_slot = self._ownerships.setter(token_id);
         curr_slot.addr.set(to);
@@ -331,20 +376,18 @@ impl<T: ERC721Params> ERC721<T> {
             // as a burned slot cannot contain the zero address.
             if next_token_id != self._current_index.get() {
                 next_slot_setter.addr.set(from);
-                next_slot_setter.start_timestamp.set(U64::from(prev_ownership.start_timestamp.get()));
+                next_slot_setter
+                    .start_timestamp
+                    .set(U64::from(prev_ownership.start_timestamp.get()));
             }
         }
 
-        evm::log(Transfer {
-            from,
-            to,
-            token_id
-        });
+        evm::log(Transfer { from, to, token_id });
 
         self._after_token_transfers(from, to, token_id, U256::from(1))?;
         Ok(())
     }
-    
+
     fn _check_contract_on_erc721_received<S: TopLevelStorage>(
         storage: &mut S,
         token_id: U256,
@@ -358,7 +401,9 @@ impl<T: ERC721Params> ERC721<T> {
             .0;
 
         if u32::from_be_bytes(received) != ERC721_TOKEN_RECEIVER_ID {
-            return Err(ERC721Error::TransferToNonERC721ReceiverImplementer(TransferToNonERC721ReceiverImplementer {}));
+            return Err(ERC721Error::TransferToNonERC721ReceiverImplementer(
+                TransferToNonERC721ReceiverImplementer {},
+            ));
         }
         Ok(())
     }
@@ -379,13 +424,14 @@ impl<T: ERC721Params> ERC721<T> {
         let from = prev_ownership.addr.get();
 
         if approval_check {
-            let is_approved_or_owner =
-                msg::sender() == from
+            let is_approved_or_owner = msg::sender() == from
                 || self.is_approved_for_all(from, msg::sender())?
                 || self.get_approved(token_id)? == msg::sender();
-            
+
             if !is_approved_or_owner {
-                return Err(ERC721Error::TransferCallerNotOwnerNorApproved(TransferCallerNotOwnerNorApproved {}));
+                return Err(ERC721Error::TransferCallerNotOwnerNorApproved(
+                    TransferCallerNotOwnerNorApproved {},
+                ));
             }
         }
 
@@ -398,7 +444,9 @@ impl<T: ERC721Params> ERC721<T> {
         let old_balance = address_data_setter.balance.get();
         address_data_setter.balance.set(old_balance - U64::from(1));
         let old_number_burned = address_data_setter.number_burned.get();
-        address_data_setter.number_burned.set(old_number_burned + U64::from(1));
+        address_data_setter
+            .number_burned
+            .set(old_number_burned + U64::from(1));
 
         // Keep track of who burned the token, and the timestamp of burning.
         let mut curr_slot = self._ownerships.setter(token_id);
@@ -415,14 +463,16 @@ impl<T: ERC721Params> ERC721<T> {
             // as a burned slot cannot contain the zero address.
             if next_token_id != self._current_index.get() {
                 next_slot.addr.set(from);
-                next_slot.start_timestamp.set(prev_ownership.start_timestamp.get());
+                next_slot
+                    .start_timestamp
+                    .set(prev_ownership.start_timestamp.get());
             }
         }
 
         evm::log(Transfer {
             from,
             to: Address::default(),
-            token_id
+            token_id,
         });
 
         self._after_token_transfers(from, Address::default(), token_id, U256::from(1))?;
@@ -472,7 +522,9 @@ impl<T: ERC721Params> ERC721<T> {
     /// Gets the number of NFTs owned by an account.
     pub fn balance_of(&self, owner: Address) -> Result<U256> {
         if owner.is_zero() {
-            return Err(ERC721Error::BalanceQueryForZeroAddress(BalanceQueryForZeroAddress {}));
+            return Err(ERC721Error::BalanceQueryForZeroAddress(
+                BalanceQueryForZeroAddress {},
+            ));
         }
         Ok(U256::from(self._address_data.get(owner).balance.get()))
     }
@@ -502,12 +554,16 @@ impl<T: ERC721Params> ERC721<T> {
     pub fn approve(&mut self, to: Address, token_id: U256) -> Result<()> {
         let owner = self.owner_of(token_id)?;
         if to == owner {
-            return Err(ERC721Error::ApprovalToCurrentOwner(ApprovalToCurrentOwner {}));
+            return Err(ERC721Error::ApprovalToCurrentOwner(
+                ApprovalToCurrentOwner {},
+            ));
         }
 
         if msg::sender() != owner {
             if !self.is_approved_for_all(owner, msg::sender())? {
-                return Err(ERC721Error::ApprovalCallerNotOwnerNorApproved(ApprovalCallerNotOwnerNorApproved {}));
+                return Err(ERC721Error::ApprovalCallerNotOwnerNorApproved(
+                    ApprovalCallerNotOwnerNorApproved {},
+                ));
             }
         }
 
@@ -517,11 +573,13 @@ impl<T: ERC721Params> ERC721<T> {
     /// Gets the account managing an NFT, or zero if unmanaged.
     pub fn get_approved(&self, token_id: U256) -> Result<Address> {
         if !self._exists(token_id) {
-            return Err(ERC721Error::ApprovalQueryForNonexistentToken(ApprovalQueryForNonexistentToken {}));
+            return Err(ERC721Error::ApprovalQueryForNonexistentToken(
+                ApprovalQueryForNonexistentToken {},
+            ));
         }
         Ok(self._token_approvals.get(token_id))
     }
-    
+
     /// Transfers an NFT, but only after checking the `to` address can receive the NFT.
     pub fn safe_transfer_from<S: TopLevelStorage + BorrowMut<Self>>(
         storage: &mut S,
@@ -544,13 +602,13 @@ impl<T: ERC721Params> ERC721<T> {
         token_id: U256,
         data: Bytes,
     ) -> Result<()> {
-        storage
-            .borrow_mut()
-            ._transfer(from, to, token_id)?;
+        storage.borrow_mut()._transfer(from, to, token_id)?;
 
         // Equivalent to `to.has_code()`
         let hash = to.codehash();
-        if !hash.is_zero() && hash != b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470") {
+        if !hash.is_zero()
+            && hash != b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+        {
             Self::_check_contract_on_erc721_received(storage, token_id, from, to, data.to_vec())?
         }
         Ok(())
@@ -564,7 +622,9 @@ impl<T: ERC721Params> ERC721<T> {
 
     /// Grants an account the ability to manage all of the sender's NFTs.
     pub fn set_approval_for_all(&mut self, operator: Address, approved: bool) -> Result<()> {
-        self._operator_approvals.setter(msg::sender()).insert(operator, approved);
+        self._operator_approvals
+            .setter(msg::sender())
+            .insert(operator, approved);
         evm::log(ApprovalForAll {
             owner: msg::sender(),
             operator,
