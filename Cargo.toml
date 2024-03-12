@@ -24,10 +24,6 @@ eyre = "0.6.8"
 export-abi = ["stylus-sdk/export-abi"]
 debug = ["stylus-sdk/debug"]
 
-[[bin]]
-name = "erc721a"
-path = "src/main.rs"
-
 [lib]
 crate-type = ["lib", "cdylib"]
 
